@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X Reposts Raffle",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "Collect retweeters on X and run on-page sorting & raffle. No server required.",
   "icons": {
     "16": "icons/XRT16.png",
@@ -32,4 +32,6 @@
 /* 1.0.0 = 확장 프로그램 제작 */
 /* 1.0.1 = 사소한 UI 수정 */
 /* 1.0.2 = 사소한 버그 수정 */
-/* 1.1.0 = 중앙 재게시 컬럼에서만 인식하도록 수정 */ 
+/* 1.1.0 = 중앙 재게시 컬럼에서만 인식하도록 수정 */
+/* 1.1.1 = Point 기능 추가 */
+/* 1.1.2 = Point 기능 오류 수정 */
