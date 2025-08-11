@@ -86,7 +86,7 @@
       <div id="list" class="list"></div>
       <small>이 패널은 페이지 위에만 뜨는 클라이언트 확장 프로그램으로, 외부 서버로 데이터를 전송하지 않습니다.</small>
       <small>이 페이지는 <span class="monospace">/status/.../retweets</span> 이어야 합니다. 아닌 경우 해당 링크로 이동하세요.</small>
-      <small>X Reposts Raffle 확장 프로그램의 제작자는 JTech_CO / Bryan M. / Sekhar (모두 동일 인물)입니다.</small>
+      <small>© 2025 JTech CO. X Reposts Raffle Extension. All rights reserved. JTech_CO = Bryan M. = Sekhar</small>
     </div>
   `;
   shadow.append(style, wrap);
@@ -260,4 +260,5 @@
   // ===== Initial parse (if items already in view) =====
   parseCells(); renderList();
 })();
+
 
