@@ -12,24 +12,28 @@
                || document.querySelector('main')
                || document.body;
 
-  const RETWEETS_SCOPE = (() => {
-    const candidates = [
-      '[aria-label*="Retweets"]',
-      '[aria-label*="리포스트"]',
-      '[aria-label*="재게시"]',
-      '[role="region"] [data-testid="primaryColumn"]',
-      '[data-testid="primaryColumn"] [role="region"]',
-      '[data-testid="primaryColumn"] [data-testid="cellInnerDiv"]',
-      '[data-testid="primaryColumn"]',
-      'main [role="region"]',
-      'main'
+  function detectRetweetsScope() {
+    // 1. 명시적 aria-label + role="region"
+    const labelSelectors = [
+      '[role="region"][aria-label*="Retweets" i]',
+      '[role="region"][aria-label*="리포스트"]',
+      '[role="region"][aria-label*="재게시"]',
+      '[role="region"][aria-label*="게시물 참여수"]'
     ];
-    for (const sel of candidates) {
+    for (const sel of labelSelectors) {
       const el = PRIMARY.querySelector(sel);
       if (el) return el;
     }
+    // 2. region 중 UserCell이 가장 많은 컨테이너
+    const regions = Array.from(PRIMARY.querySelectorAll('[role="region"]'));
+    if (regions.length) {
+      regions.sort((a,b)=> ($$('[data-testid="UserCell"]', b).length - $$('[data-testid="UserCell"]', a).length));
+      if ($$('[data-testid="UserCell"]', regions[0]).length > 0) return regions[0];
+    }
+    // 3. 폴백
     return PRIMARY;
-  })();
+  }
+  const RETWEETS_SCOPE = detectRetweetsScope();
 
   function isInExcludedArea(el) {
     return !!el.closest(
@@ -88,11 +92,11 @@
     .tag { font-size:11px; padding:2px 6px; border-radius:999px; background:#374151; color:#c7d2fe; }
     a.clean { color:#93c5fd; text-decoration:none; }
 
-    /* Overlay pulse animation (document에 붙는 요소지만 여기서 keyframes 정의) */
-    @keyframes xraffle-pulse {
-      0%   { opacity: 0;   box-shadow: 0 0 0 0 rgba(255, 230, 0, .9); }
-      50%  { opacity: 1;   box-shadow: 0 0 20px 6px rgba(255, 230, 0, .9); }
-      100% { opacity: 0;   box-shadow: 0 0 0 0 rgba(255, 230, 0, .0); }
+    /* pulse */
+    @keyframes xraffle-pulse-border {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 230, 0, .0); border-color: rgba(255, 230, 0, .0); }
+      25%  { box-shadow: 0 0 18px 4px rgba(255, 230, 0, .9); border-color: rgba(255, 230, 0, 1); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 230, 0, .0); border-color: rgba(255, 230, 0, .0); }
     }
   `;
 
@@ -137,8 +141,8 @@
       </div>
 
       <div id="list" class="list"></div>
-      <small>이 확장은 페이지 위에서만 동작하며, 외부 서버로 데이터 전송을 하지 않습니다.</small>
-      <small>현재 스코프: <span class="monospace">${RETWEETS_SCOPE === PRIMARY ? 'PRIMARY' : 'RETWEETS_SCOPE'}</span> (사이드바/팔로우 추천은 자동 제외)</small>
+      <small>외부 서버로 데이터를 전송하지 않습니다.</small>
+      <small>현재 스코프: <span class="monospace">${RETWEETS_SCOPE === PRIMARY ? 'PRIMARY' : 'RETWEETS_SCOPE'}</span> (사이드바/팔로우 추천 제외)</small>
       <small>© 2025 JTech CO. X Reposts Raffle Extension. All rights reserved. JTech_CO = Bryan M. = Sekhar</small>
     </div>
   `;
@@ -173,7 +177,7 @@
   const PAUSE = 700;
   const MAX_TICKS = 200;
 
-  // ========= Rendering & helpers =========
+  // ========= Render & helpers =========
   function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
   function renderList() {
@@ -300,29 +304,31 @@
     });
   }
 
-  // ========= NEW: Scope Pulse Overlay =========
+  // ========= Scope Pulse =========
   function pulseScope(durationMs = 500) {
     if (!RETWEETS_SCOPE || !document.body) return;
     const rect = RETWEETS_SCOPE.getBoundingClientRect();
-    // 화면 밖이면 스크롤로 대충 맞춰주기(선택)
+
+    // 화면 밖이면 중앙으로 스크롤
     if (rect.bottom < 0 || rect.top > window.innerHeight) {
       RETWEETS_SCOPE.scrollIntoView({behavior: 'instant', block: 'center'});
     }
     const r = RETWEETS_SCOPE.getBoundingClientRect();
 
+    // 컨테이너만 강조
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
       position: 'fixed',
-      left: `${Math.max(0, r.left)}px`,
-      top: `${Math.max(0, r.top)}px`,
-      width: `${Math.max(0, Math.min(window.innerWidth - r.left, r.width))}px`,
-      height:`${Math.max(0, Math.min(window.innerHeight - r.top, r.height))}px`,
-      border: '3px solid #FFE600',
-      borderRadius: '8px',
-      background: 'rgba(255,230,0,0.12)',
+      left: `${r.left}px`,
+      top: `${r.top}px`,
+      width: `${r.width}px`,
+      height:`${r.height}px`,
+      border: '3px solid rgba(255,230,0,0)',
+      borderRadius: '10px',
+      background: 'transparent',
       pointerEvents: 'none',
       zIndex: 2147483646,
-      animation: `xraffle-pulse ${durationMs}ms ease-in-out 1`
+      animation: `xraffle-pulse-border ${durationMs}ms ease-in-out 1`
     });
     document.body.appendChild(overlay);
     setTimeout(() => overlay.remove(), durationMs);
@@ -332,7 +338,7 @@
   ui.start.onclick = autoScrollCollect;
   ui.stop.onclick  = stop;
   ui.clear.onclick = clearAll;
-  ui.point.onclick = () => pulseScope(500); // Point 버튼: 0.5초 펄스
+  ui.point.onclick = () => pulseScope(500);   // 컨테이너만 0.5s 펄스
   ui.sort.onchange = renderList;
   ui.filter.oninput = renderList;
   ui.draw.onclick   = drawWinners;
