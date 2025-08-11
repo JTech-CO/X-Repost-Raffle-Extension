@@ -1,26 +1,81 @@
 (() => {
-  // ===== Utility =====
+  // ========= Utilities =========
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const $ = (sel, root=document) => root.querySelector(sel);
+  const $  = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
-  // ===== Guard: only once per tab =====
+  // 중복 인젝션 방지
   if (window.__X_RAFFLE_PANEL__) return;
   window.__X_RAFFLE_PANEL__ = true;
 
-  // ===== Shadow Panel Mount =====
+  // ========= Scope detection =========
+
+  // 중앙 본문 컬럼
+  const PRIMARY = document.querySelector('[data-testid="primaryColumn"]')
+               || document.querySelector('main')
+               || document.body;
+
+  // 재게시 타임라인 후보 선택자
+  const RETWEETS_SCOPE = (() => {
+    const candidates = [
+      // 언어별 aria-label
+      '[aria-label*="Retweets"]',
+      '[aria-label*="리포스트"]',
+      '[aria-label*="재게시"]',
+
+      // 타임라인 컨테이너
+      '[role="region"] [data-testid="primaryColumn"]',
+      '[data-testid="primaryColumn"] [role="region"]',
+      '[data-testid="primaryColumn"] [data-testid="cellInnerDiv"]',
+      '[data-testid="primaryColumn"]',
+      'main [role="region"]',
+      'main'
+    ];
+    for (const sel of candidates) {
+      const el = PRIMARY.querySelector(sel);
+      if (el) return el;
+    }
+    return PRIMARY;
+  })();
+
+  // 추천/사이드바 영역 제외 판정
+  function isInExcludedArea(el) {
+    return !!el.closest(
+      [
+        '[data-testid="sidebarColumn"]',
+        'aside',
+        '[aria-label*="Who to follow"]',
+        '[aria-label*="팔로우 추천"]',
+        '[aria-label*="팔로우"]',
+        '[data-testid="InlineFollow"]', // 인라인 추천 박스
+      ].join(',')
+    );
+  }
+
+  // 스크롤 >> 타임라인 컨테이너가 스크롤 가능한지 판단
+  function getScrollTarget() {
+    const el = RETWEETS_SCOPE;
+    if (!el) return window;
+    const canScroll = (n) =>
+      n && (n.scrollHeight > n.clientHeight + 20 || getComputedStyle(n).overflowY === 'auto');
+    let p = el;
+    while (p && p !== document.documentElement) {
+      if (canScroll(p)) return p;
+      p = p.parentElement;
+    }
+    return window;
+  }
+  const SCROLLER = getScrollTarget();
+
+  // ========= Shadow Panel =========
   const host = document.createElement('div');
-  host.style.all = 'unset';
-  host.style.position = 'fixed';
-  host.style.top = '12px';
-  host.style.right = '12px';
-  host.style.zIndex = '2147483647';
-  host.style.width = '360px';
-  host.style.pointerEvents = 'auto';
+  Object.assign(host.style, {
+    all: 'unset', position: 'fixed', top: '12px', right: '12px',
+    zIndex: 2147483647, width: '360px', pointerEvents: 'auto'
+  });
   document.documentElement.appendChild(host);
   const shadow = host.attachShadow({mode: 'open'});
 
-  // ===== Styles =====
   const style = document.createElement('style');
   style.textContent = `
     :host { all: initial; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
@@ -43,14 +98,13 @@
     a.clean { color:#93c5fd; text-decoration:none; }
   `;
 
-  // ===== Panel UI =====
   const wrap = document.createElement('div');
   wrap.className = 'card';
   wrap.innerHTML = `
     <div style="padding:12px" class="col">
       <div class="row" style="justify-content:space-between">
         <h3>X Reposts Raffle</h3>
-        <button id="close" class="btn danger">×</button>
+        <button id="close" class="btn danger" title="Close">×</button>
       </div>
 
       <div class="col">
@@ -84,8 +138,8 @@
       </div>
 
       <div id="list" class="list"></div>
-      <small>이 패널은 페이지 위에만 뜨는 클라이언트 확장 프로그램으로, 외부 서버로 데이터를 전송하지 않습니다.</small>
-      <small>이 페이지는 <span class="monospace">/status/.../retweets</span> 이어야 합니다. 아닌 경우 해당 링크로 이동하세요.</small>
+      <small>이 확장은 페이지 위에서만 동작하며, 외부 서버로 데이터 전송을 하지 않습니다.</small>
+      <small>현재 스코프: <span class="monospace">${RETWEETS_SCOPE === PRIMARY ? 'PRIMARY' : 'RETWEETS_SCOPE'}</span> (사이드바/팔로우 추천은 자동 제외)</small>
       <small>© 2025 JTech CO. X Reposts Raffle Extension. All rights reserved. JTech_CO = Bryan M. = Sekhar</small>
     </div>
   `;
@@ -109,22 +163,24 @@
     list: shadow.getElementById('list'),
   };
 
-  // ===== State =====
+  // ========= State =========
   let running = false;
-  let users = [];              // raw unique
-  let seen = new Set();        // set of handles
-  let lastCount = 0;           // for delta & stop condition
-  let stableTicks = 0;         // stop after N ticks with no new users
+  let users = [];
+  let seen = new Set();
+  let lastCount = 0;
+  let stableTicks = 0;
   const MAX_STABLE = 3;
-  const PAUSE = 700;           // ms between scrolls
-  const MAX_TICKS = 200;       // hard cap
+  const PAUSE = 700;      // ms
+  const MAX_TICKS = 200;  // safety cap
 
-  // ===== Helpers =====
+  // ========= Helpers =========
+  function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
   function renderList() {
     const q = (ui.filter.value || '').trim().toLowerCase();
     const sorted = [...users];
     if (ui.sort.value === 'handle') sorted.sort((a,b)=>a.handle.localeCompare(b.handle));
-    else sorted.sort((a,b)=> (a.nickname||'').localeCompare(b.nickname||''));
+    else sorted.sort((a,b)=>(a.nickname||'').localeCompare(b.nickname||''));
 
     const filtered = q
       ? sorted.filter(u =>
@@ -145,21 +201,22 @@
 
     ui.count.textContent = users.length;
   }
-  function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
+  // 재게시 타임라인(RETWEETS_SCOPE) 안에서만 UserCell 수집, 사이드바/추천은 제외
   function parseCells() {
-    const cells = $$('[data-testid="UserCell"]', document);
+    const cells = $$('[data-testid="UserCell"]', RETWEETS_SCOPE);
     let added = 0;
+
     for (const c of cells) {
+      if (isInExcludedArea(c)) continue; // 안전 장치
+
       try {
-        // handle from profile link
+        // handle 잡기(프로필 링크 기준)
         let handle = "";
-        const links = $$('a[href^="/"]', c);
+        const links = $$('a[href^="/"], a[href^="https://x.com/"]', c);
         for (const a of links) {
           const href = a.getAttribute('href') || '';
-          // profile link only (skip /status, /i, /hashtag ...)
           if (/^https?:\/\/x\.com\//.test(href)) {
-            // absolute URL case
             const seg = href.split('x.com/')[1].split('?')[0];
             if (seg && !seg.startsWith('i/') && !seg.includes('/status/')) { handle = seg.replace(/\/+$/,''); break; }
           } else if (href.startsWith('/')) {
@@ -169,6 +226,7 @@
         }
         if (!handle) continue;
 
+        // 닉네임/소개
         let nickname = '';
         const nameEl = c.querySelector('div[dir="ltr"] span');
         if (nameEl) nickname = nameEl.textContent.trim();
@@ -199,13 +257,17 @@
 
       if (users.length === lastCount) {
         stableTicks++;
-        if (stableTicks >= MAX_STABLE) break; // no more new entries
+        if (stableTicks >= MAX_STABLE) break; // 초과 증가 X
       } else {
         lastCount = users.length; stableTicks = 0;
       }
 
-      // scroll
-      window.scrollBy(0, Math.max(400, window.innerHeight * 0.9));
+      // 스코프만 스크롤
+      if (SCROLLER === window) {
+        window.scrollBy(0, Math.max(400, window.innerHeight * 0.9));
+      } else {
+        SCROLLER.scrollTop += Math.max(400, (SCROLLER.clientHeight || window.innerHeight) * 0.9);
+      }
       await sleep(PAUSE);
     }
 
@@ -215,7 +277,6 @@
   }
 
   function stop() { running = false; }
-
   function clearAll() {
     users = []; seen = new Set(); renderList();
     ui.delta.textContent = '0'; ui.status.textContent = 'idle';
@@ -225,19 +286,16 @@
     const n = Math.max(1, Math.min(parseInt(ui.winners.value||'1',10), users.length || 1));
     const pool = [...users];
     const picked = new Set();
-    while (picked.size < n && pool.length) {
-      picked.add(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
-    }
+    while (picked.size < n && pool.length) picked.add(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
     const res = Array.from(picked);
     alert(`당첨자 (${n}명)\n` + res.map(u => `${u.nickname} (@${u.handle})`).join('\n'));
   }
 
   function toCSV(rows) {
     const header = ['handle','nickname','description'];
-    const escapeCSV = (s='') => `"${String(s).replace(/"/g,'""')}"`;
-    return [header.join(','), ...rows.map(r => [r.handle, r.nickname, r.description].map(escapeCSV).join(','))].join('\n');
+    const escCSV = (s='') => `"${String(s).replace(/"/g,'""')}"`;
+    return [header.join(','), ...rows.map(r => [r.handle, r.nickname, r.description].map(escCSV).join(','))].join('\n');
   }
-
   function copyText(txt) {
     navigator.clipboard.writeText(txt).then(()=> {
       ui.status.textContent = 'copied';
@@ -245,20 +303,18 @@
     });
   }
 
-  // ===== Wire UI =====
+  // ========= Wire UI =========
   ui.start.onclick = autoScrollCollect;
-  ui.stop.onclick = stop;
+  ui.stop.onclick  = stop;
   ui.clear.onclick = clearAll;
   ui.sort.onchange = renderList;
   ui.filter.oninput = renderList;
-  ui.draw.onclick = drawWinners;
-  ui.copy.onclick = () => copyText(users.map(u=>`${u.nickname} (@${u.handle})`).join('\n'));
-  ui.csv.onclick = () => copyText(toCSV(users));
-  ui.json.onclick = () => copyText(JSON.stringify({count: users.length, users}, null, 2));
-  ui.close.onclick = () => { host.remove(); window.__X_RAFFLE_PANEL__ = false; };
+  ui.draw.onclick   = drawWinners;
+  ui.copy.onclick   = () => copyText(users.map(u=>`${u.nickname} (@${u.handle})`).join('\n'));
+  ui.csv.onclick    = () => copyText(toCSV(users));
+  ui.json.onclick   = () => copyText(JSON.stringify({count: users.length, users}, null, 2));
+  ui.close.onclick  = () => { host.remove(); window.__X_RAFFLE_PANEL__ = false; };
 
-  // ===== Initial parse (if items already in view) =====
+  // 초기 화면에 이미 보이는 셀도 반영
   parseCells(); renderList();
 })();
-
-
