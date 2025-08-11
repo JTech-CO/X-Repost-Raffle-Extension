@@ -4,26 +4,19 @@
   const $  = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
-  // 중복 인젝션 방지
   if (window.__X_RAFFLE_PANEL__) return;
   window.__X_RAFFLE_PANEL__ = true;
 
   // ========= Scope detection =========
-
-  // 중앙 본문 컬럼
   const PRIMARY = document.querySelector('[data-testid="primaryColumn"]')
                || document.querySelector('main')
                || document.body;
 
-  // 재게시 타임라인 후보 선택자
   const RETWEETS_SCOPE = (() => {
     const candidates = [
-      // 언어별 aria-label
       '[aria-label*="Retweets"]',
       '[aria-label*="리포스트"]',
       '[aria-label*="재게시"]',
-
-      // 타임라인 컨테이너
       '[role="region"] [data-testid="primaryColumn"]',
       '[data-testid="primaryColumn"] [role="region"]',
       '[data-testid="primaryColumn"] [data-testid="cellInnerDiv"]',
@@ -38,7 +31,6 @@
     return PRIMARY;
   })();
 
-  // 추천/사이드바 영역 제외 판정
   function isInExcludedArea(el) {
     return !!el.closest(
       [
@@ -47,12 +39,11 @@
         '[aria-label*="Who to follow"]',
         '[aria-label*="팔로우 추천"]',
         '[aria-label*="팔로우"]',
-        '[data-testid="InlineFollow"]', // 인라인 추천 박스
+        '[data-testid="InlineFollow"]',
       ].join(',')
     );
   }
 
-  // 스크롤 >> 타임라인 컨테이너가 스크롤 가능한지 판단
   function getScrollTarget() {
     const el = RETWEETS_SCOPE;
     if (!el) return window;
@@ -71,7 +62,7 @@
   const host = document.createElement('div');
   Object.assign(host.style, {
     all: 'unset', position: 'fixed', top: '12px', right: '12px',
-    zIndex: 2147483647, width: '360px', pointerEvents: 'auto'
+    zIndex: 2147483647, width: '380px', pointerEvents: 'auto'
   });
   document.documentElement.appendChild(host);
   const shadow = host.attachShadow({mode: 'open'});
@@ -84,7 +75,7 @@
     .col { display:flex; flex-direction:column; gap:10px; }
     .btn { background:#374151; color:#e5e7eb; border:1px solid #4b5563; border-radius:10px; padding:8px 10px; cursor:pointer; }
     .btn.primary { background:#2563eb; border-color:#1d4ed8; }
-    .btn.danger { background:#7f1d1d; border-color:#991b1b; }
+    .btn.danger  { background:#7f1d1d; border-color:#991b1b; }
     .btn:disabled { opacity:.6; cursor:default; }
     .pill { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid #374151; background:#111827; }
     input, select { background:#111827; color:#e5e7eb; border:1px solid #374151; border-radius:10px; padding:8px 10px; width:100%; }
@@ -96,6 +87,13 @@
     .user:nth-child(odd) { background:#0f172a; }
     .tag { font-size:11px; padding:2px 6px; border-radius:999px; background:#374151; color:#c7d2fe; }
     a.clean { color:#93c5fd; text-decoration:none; }
+
+    /* Overlay pulse animation (document에 붙는 요소지만 여기서 keyframes 정의) */
+    @keyframes xraffle-pulse {
+      0%   { opacity: 0;   box-shadow: 0 0 0 0 rgba(255, 230, 0, .9); }
+      50%  { opacity: 1;   box-shadow: 0 0 20px 6px rgba(255, 230, 0, .9); }
+      100% { opacity: 0;   box-shadow: 0 0 0 0 rgba(255, 230, 0, .0); }
+    }
   `;
 
   const wrap = document.createElement('div');
@@ -108,10 +106,11 @@
       </div>
 
       <div class="col">
-        <div class="row">
+        <div class="row" style="flex-wrap:wrap">
           <button id="start" class="btn primary" title="Auto scroll & collect">Start</button>
           <button id="stop"  class="btn" disabled>Stop</button>
           <button id="clear" class="btn">Clear</button>
+          <button id="point" class="btn" title="Highlight collection scope">Point</button>
         </div>
         <div class="row">
           <span class="pill">Found: <b id="count">0</b></span>
@@ -148,17 +147,18 @@
   const ui = {
     close: shadow.getElementById('close'),
     start: shadow.getElementById('start'),
-    stop: shadow.getElementById('stop'),
+    stop : shadow.getElementById('stop'),
     clear: shadow.getElementById('clear'),
+    point: shadow.getElementById('point'),
     count: shadow.getElementById('count'),
     delta: shadow.getElementById('delta'),
     status: shadow.getElementById('status'),
-    sort: shadow.getElementById('sort'),
+    sort : shadow.getElementById('sort'),
     filter: shadow.getElementById('filter'),
     winners: shadow.getElementById('winners'),
     draw: shadow.getElementById('draw'),
     copy: shadow.getElementById('copy'),
-    csv: shadow.getElementById('csv'),
+    csv : shadow.getElementById('csv'),
     json: shadow.getElementById('json'),
     list: shadow.getElementById('list'),
   };
@@ -170,10 +170,10 @@
   let lastCount = 0;
   let stableTicks = 0;
   const MAX_STABLE = 3;
-  const PAUSE = 700;      // ms
-  const MAX_TICKS = 200;  // safety cap
+  const PAUSE = 700;
+  const MAX_TICKS = 200;
 
-  // ========= Helpers =========
+  // ========= Rendering & helpers =========
   function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
   function renderList() {
@@ -202,16 +202,14 @@
     ui.count.textContent = users.length;
   }
 
-  // 재게시 타임라인(RETWEETS_SCOPE) 안에서만 UserCell 수집, 사이드바/추천은 제외
   function parseCells() {
     const cells = $$('[data-testid="UserCell"]', RETWEETS_SCOPE);
     let added = 0;
 
     for (const c of cells) {
-      if (isInExcludedArea(c)) continue; // 안전 장치
+      if (isInExcludedArea(c)) continue;
 
       try {
-        // handle 잡기(프로필 링크 기준)
         let handle = "";
         const links = $$('a[href^="/"], a[href^="https://x.com/"]', c);
         for (const a of links) {
@@ -226,7 +224,6 @@
         }
         if (!handle) continue;
 
-        // 닉네임/소개
         let nickname = '';
         const nameEl = c.querySelector('div[dir="ltr"] span');
         if (nameEl) nickname = nameEl.textContent.trim();
@@ -257,12 +254,11 @@
 
       if (users.length === lastCount) {
         stableTicks++;
-        if (stableTicks >= MAX_STABLE) break; // 초과 증가 X
+        if (stableTicks >= MAX_STABLE) break;
       } else {
         lastCount = users.length; stableTicks = 0;
       }
 
-      // 스코프만 스크롤
       if (SCROLLER === window) {
         window.scrollBy(0, Math.max(400, window.innerHeight * 0.9));
       } else {
@@ -277,6 +273,7 @@
   }
 
   function stop() { running = false; }
+
   function clearAll() {
     users = []; seen = new Set(); renderList();
     ui.delta.textContent = '0'; ui.status.textContent = 'idle';
@@ -303,10 +300,39 @@
     });
   }
 
+  // ========= NEW: Scope Pulse Overlay =========
+  function pulseScope(durationMs = 500) {
+    if (!RETWEETS_SCOPE || !document.body) return;
+    const rect = RETWEETS_SCOPE.getBoundingClientRect();
+    // 화면 밖이면 스크롤로 대충 맞춰주기(선택)
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      RETWEETS_SCOPE.scrollIntoView({behavior: 'instant', block: 'center'});
+    }
+    const r = RETWEETS_SCOPE.getBoundingClientRect();
+
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      left: `${Math.max(0, r.left)}px`,
+      top: `${Math.max(0, r.top)}px`,
+      width: `${Math.max(0, Math.min(window.innerWidth - r.left, r.width))}px`,
+      height:`${Math.max(0, Math.min(window.innerHeight - r.top, r.height))}px`,
+      border: '3px solid #FFE600',
+      borderRadius: '8px',
+      background: 'rgba(255,230,0,0.12)',
+      pointerEvents: 'none',
+      zIndex: 2147483646,
+      animation: `xraffle-pulse ${durationMs}ms ease-in-out 1`
+    });
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), durationMs);
+  }
+
   // ========= Wire UI =========
   ui.start.onclick = autoScrollCollect;
   ui.stop.onclick  = stop;
   ui.clear.onclick = clearAll;
+  ui.point.onclick = () => pulseScope(500); // Point 버튼: 0.5초 펄스
   ui.sort.onchange = renderList;
   ui.filter.oninput = renderList;
   ui.draw.onclick   = drawWinners;
