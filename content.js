@@ -206,6 +206,29 @@
     ui.count.textContent = users.length;
   }
 
+  function ensureGlobalPulseCSS() {
+  if (document.getElementById('xraffle-pulse-style')) return;
+  const s = document.createElement('style');
+  s.id = 'xraffle-pulse-style';
+  s.textContent = `
+    @keyframes xraffle-pulse-border {
+      0%   { box-shadow: 0 0 0 0 rgba(255,230,0,0); border-color: rgba(255,230,0,0); }
+      25%  { box-shadow: 0 0 18px 4px rgba(255,230,0,.95); border-color: rgba(255,230,0,1); }
+      100% { box-shadow: 0 0 0 0 rgba(255,230,0,0); border-color: rgba(255,230,0,0); }
+    }
+    .xraffle-pulse {
+      position: fixed;
+      border: 3px solid rgba(255,230,0,0);
+      border-radius: 10px;
+      background: transparent;
+      pointer-events: none;
+      z-index: 2147483646;
+      animation: xraffle-pulse-border 500ms ease-in-out 1;
+    }
+  `;
+  document.head.appendChild(s);
+}
+
   function parseCells() {
     const cells = $$('[data-testid="UserCell"]', RETWEETS_SCOPE);
     let added = 0;
@@ -306,33 +329,27 @@
 
   // ========= Scope Pulse =========
   function pulseScope(durationMs = 500) {
-    if (!RETWEETS_SCOPE || !document.body) return;
-    const rect = RETWEETS_SCOPE.getBoundingClientRect();
+  if (!RETWEETS_SCOPE || !document.body) return;
 
-    // 화면 밖이면 중앙으로 스크롤
-    if (rect.bottom < 0 || rect.top > window.innerHeight) {
-      RETWEETS_SCOPE.scrollIntoView({behavior: 'instant', block: 'center'});
-    }
-    const r = RETWEETS_SCOPE.getBoundingClientRect();
+  ensureGlobalPulseCSS();
 
-    // 컨테이너만 강조
-    const overlay = document.createElement('div');
-    Object.assign(overlay.style, {
-      position: 'fixed',
-      left: `${r.left}px`,
-      top: `${r.top}px`,
-      width: `${r.width}px`,
-      height:`${r.height}px`,
-      border: '3px solid rgba(255,230,0,0)',
-      borderRadius: '10px',
-      background: 'transparent',
-      pointerEvents: 'none',
-      zIndex: 2147483646,
-      animation: `xraffle-pulse-border ${durationMs}ms ease-in-out 1`
-    });
-    document.body.appendChild(overlay);
-    setTimeout(() => overlay.remove(), durationMs);
+  const rect0 = RETWEETS_SCOPE.getBoundingClientRect();
+  // 화면 밖이면 중앙으로 스크롤
+  if (rect0.bottom < 0 || rect0.top > window.innerHeight) {
+    RETWEETS_SCOPE.scrollIntoView({ behavior: 'instant', block: 'center' });
   }
+  const r = RETWEETS_SCOPE.getBoundingClientRect();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'xraffle-pulse';
+  overlay.style.left   = `${r.left}px`;
+  overlay.style.top    = `${r.top}px`;
+  overlay.style.width  = `${r.width}px`;
+  overlay.style.height = `${r.height}px`;
+
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.remove(), durationMs);
+}
 
   // ========= Wire UI =========
   ui.start.onclick = autoScrollCollect;
@@ -350,3 +367,4 @@
   // 초기 화면에 이미 보이는 셀도 반영
   parseCells(); renderList();
 })();
+
