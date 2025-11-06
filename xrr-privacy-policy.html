@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>X Reposts Raffle Extension | 개인정보 처리방침 · Privacy Policy</title>
+<style>
+:root {
+  --bg: #000000;
+  --text: #bcbcbc;
+  --muted: #3a3a3a;
+  --panel: #020202;
+  --panel-alt: #262626;
+  --border: #bfbfbf;
+  --link: #f40a0a;
+  --link-visited: #790101;
+  --link-hover: #feaeae;
+  --accent: #fe4848;
+  --accent-strong: #ac2929;
+  --accent-strong-hover: #d66a6a;
+  --note: #420f0f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, Apple SD Gothic Neo, Noto Sans KR, "Malgun Gothic", sans-serif;
+  line-height: 1.65;
+}
+header { padding: 32px 20px 0 20px; text-align: center; }
+h1, h2, h3 { color: #ffffff; margin: 0 0 12px 0; font-weight: 700; }
+p { margin: 10px 0; }
+a { color: var(--link); text-decoration: none; }
+a:visited { color: var(--link-visited); }
+a:hover { color: var(--link-hover); }
+main {
+  max-width: 920px;
+  margin: 20px auto 40px auto;
+  background: linear-gradient(180deg, var(--panel), var(--panel-alt));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset;
+}
+.badge { display:inline-block; padding: 2px 8px; border-radius: 6px; background: var(--accent); color: #020202; font-weight:700; }
+.note { font-size: 0.95em; color: #feaeae; background: rgba(66,15,15,0.3); border-left: 3px solid var(--note); padding: 8px 12px; border-radius: 8px; }
+.section { margin: 26px 0; }
+.card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+ul { margin: 8px 0 8px 22px; }
+footer { color: #790101; text-align: center; padding: 18px; font-size: 14px; }
+.lang-switch { display:flex; gap: 8px; justify-content:center; margin: 16px 0 8px 0; }
+button.btn {
+  appearance: none;
+  border: none;
+  background: var(--accent-strong);
+  color: #020202;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+button.btn:hover { background: var(--accent-strong-hover); color: #ffffff; }
+.lang { display: none; }
+.lang.active { display: block; }
+.small { font-size: .9em; color: var(--muted); }
+hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+</style>
+<script>
+function setLang(l) {
+  document.querySelectorAll('.lang').forEach(el => el.classList.remove('active'));
+  var target = document.getElementById('lang-' + l);
+  if (target) target.classList.add('active');
+  try { localStorage.setItem('xrr-pp-lang', l); } catch(e) { /* ignore */ }
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var saved = null;
+  try { saved = localStorage.getItem('xrr-pp-lang'); } catch(e) { saved = null; }
+  setLang(saved || 'ko');
+});
+</script>
+</head>
+<body>
+<header>
+  <div class="badge">X Reposts Raffle Extension</div>
+  <h1>개인정보 처리방침 · Privacy Policy</h1>
+  <div class="lang-switch">
+    <button class="btn" onclick="setLang('ko')">한국어</button>
+    <button class="btn" onclick="setLang('en')">English</button>
+  </div>
+  <p class="small">Last updated: 2025-11-06</p>
+</header>
+
+<main>
+  <!-- Korean -->
+  <section id="lang-ko" class="lang">
+    <div class="section card">
+      <h2>개요</h2>
+      <p>이 문서는 <strong>X Reposts Raffle Extension</strong>(이하 “확장 프로그램”)의 개인정보 처리방침입니다. 본 확장 프로그램이 사용자 데이터를 처리하는 경우, 본 방침은 정확하고 최신 정보를 제공합니다.</p>
+      <p class="note">확장 프로그램은 기본적으로 브라우저 내에서 동작하며, 공개된 리포스트 목록을 화면에서 읽어 추첨을 수행합니다. 서버로 데이터를 전송하지 않습니다.</p>
+    </div>
+
+    <div class="section card">
+      <h2>1. 사용자 데이터 처리 여부</h2>
+      <p>확장 프로그램은 페이지에서 보이는 공개 정보(사용자 아이디/핸들, 게시물 URL·ID 등)를 일시적으로 처리하여 목록 정렬과 추첨을 수행합니다. 또한 사용 편의를 위해 UI 설정(정렬 기준, 키워드 제외, 당첨자 수 등)을 <em>브라우저 로컬 저장소</em>에 보관할 수 있습니다.</p>
+    </div>
+
+    <div class="section card">
+      <h2>2. 포괄적 공개</h2>
+      <h3>2-a. 수집·이용·공유 방법</h3>
+      <ul>
+        <li><strong>수집</strong>: 사용자가 X(트위터) 리포스트 페이지를 열면, 확장 프로그램은 화면의 공개 DOM을 읽어 리포스터 계정을 파싱합니다.</li>
+        <li><strong>이용</strong>: 수집된 공개 데이터는 중복 제거·필터링·추첨 및 결과 내보내기(CSV/JSON 복사)에 사용됩니다.</li>
+        <li><strong>보관</strong>: 추첨 결과와 목록은 메모리에만 존재하며, 설정 값만 로컬 저장소에 저장됩니다. 사용자가 브라우저 데이터를 삭제하면 함께 삭제됩니다.</li>
+        <li><strong>공유</strong>: 기본적으로 제3자와 공유하지 않습니다. 사용자가 내보내기 또는 클립보드 복사를 선택하는 경우, 해당 내보내기 행위는 사용자가 직접 수신자를 결정합니다.</li>
+      </ul>
+      <h3>2-b. 공유 대상</h3>
+      <p>기본 기능에서 사용자 데이터를 외부 <strong>제3자에게 제공하지 않습니다</strong>. 분석/광고 SDK, 원격 서버, 클라우드 전송을 사용하지 않습니다. 단, 사용자가 자발적으로 결과 파일을 전송·게시하는 경우 그 수신자(예: 이벤트 당첨 공지 대상)는 사용자가 지정합니다.</p>
+    </div>
+
+    <div class="section card">
+      <h2>추가 안내</h2>
+      <ul>
+        <li><strong>보안</strong>: 데이터 처리는 브라우저 환경에 한정됩니다.</li>
+        <li><strong>아동</strong>: 아동을 대상으로 하지 않습니다.</li>
+        <li><strong>정책 변경</strong>: 내용이 변경되는 경우 본 페이지에 갱신일과 함께 게시합니다.</li>
+        <li><strong>연락처</strong>: 문의는 <a link="www.naver.com">bryan131@naver.com</a> 으로 연락해 주세요.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- English -->
+  <section id="lang-en" class="lang">
+    <div class="section card">
+      <h2>Overview</h2>
+      <p>This Privacy Policy explains how <strong>X Reposts Raffle Extension</strong> (“the Extension”) handles user data. Whenever the Extension processes user data, this policy provides accurate and up‑to‑date information.</p>
+      <p class="note">The Extension works locally in your browser. It reads the public retweeters list rendered on the page to run sorting and raffles. No data is sent to any server.</p>
+    </div>
+
+    <div class="section card">
+      <h2>1. Whether We Process User Data</h2>
+      <p>The Extension temporarily processes publicly visible information on the page (e.g., usernames/handles, post URLs/IDs) to sort participants and draw winners. For convenience, UI preferences (sorting, exclude keywords, number of winners, etc.) may be stored in <em>browser local storage</em>.</p>
+    </div>
+
+    <div class="section card">
+      <h2>2. Comprehensive Disclosure</h2>
+      <h3>2-a. How We Collect, Use, and Share</h3>
+      <ul>
+        <li><strong>Collect</strong>: When you open an X (Twitter) retweets page, the Extension parses the public DOM to read retweeter accounts.</li>
+        <li><strong>Use</strong>: The data is used for de-duplication, filtering, random draw, and exporting results (CSV/JSON copy).</li>
+        <li><strong>Store</strong>: Raffle lists/results live in memory only; settings may persist in local storage. Clearing browser data removes them.</li>
+        <li><strong>Share</strong>: No automatic sharing. If you export or copy, <em>you</em> decide the recipients of that exported data.</li>
+      </ul>
+      <h3>2-b. Parties With Whom Data Is Shared</h3>
+      <p>By default, we <strong>do not share</strong> user data with any third parties. We do not use analytics/ads SDKs, remote servers, or cloud transfer. If you voluntarily send or publish exported results, the recipients (e.g., announcement audiences) are chosen by you.</p>
+    </div>
+
+    <div class="section card">
+      <h2>Additional Information</h2>
+      <ul>
+        <li><strong>Security</strong>: Processing is confined to the browser environment.</li>
+        <li><strong>Children</strong>: Not directed to children.</li>
+        <li><strong>Changes</strong>: If we change this policy, we will post the update date here.</li>
+        <li><strong>Contact</strong>: Reach us at <a link="www.naver.com">bryan131@naver.com</a>.</li>
+      </ul>
+    </div>
+  <hr>
+</main>
+
+<footer>
+  © 2025 X Reposts Raffle Extension
+</footer>
+</body>
+</html>
