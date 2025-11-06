@@ -7,13 +7,13 @@
   if (window.__X_RAFFLE_PANEL__) return;
   window.__X_RAFFLE_PANEL__ = true;
 
-  // ========= Scope detection =========
+  // ========= Scope =========
   const PRIMARY = document.querySelector('[data-testid="primaryColumn"]')
                || document.querySelector('main')
                || document.body;
 
   function detectRetweetsScope() {
-    // 1. 명시적 aria-label + role="region"
+    // aria-label + role = region
     const labelSelectors = [
       '[role="region"][aria-label*="Retweets" i]',
       '[role="region"][aria-label*="리포스트"]',
@@ -24,13 +24,13 @@
       const el = PRIMARY.querySelector(sel);
       if (el) return el;
     }
-    // 2. region 중 UserCell이 가장 많은 컨테이너
+    // region 중 UserCell 최다 컨테이너
     const regions = Array.from(PRIMARY.querySelectorAll('[role="region"]'));
     if (regions.length) {
       regions.sort((a,b)=> ($$('[data-testid="UserCell"]', b).length - $$('[data-testid="UserCell"]', a).length));
       if ($$('[data-testid="UserCell"]', regions[0]).length > 0) return regions[0];
     }
-    // 3. 폴백
+    // 폴백
     return PRIMARY;
   }
   const RETWEETS_SCOPE = detectRetweetsScope();
@@ -89,15 +89,8 @@
     .list { max-height: 320px; overflow:auto; border:1px solid #1f2937; border-radius:10px; padding:6px; background:#0b1220; }
     .user { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:8px; border-radius:8px; }
     .user:nth-child(odd) { background:#0f172a; }
-    .tag { font-size:11px; padding:2px 6px; border-radius:999px; background:#374151; color:#c7d2fe; }
+    .tag { font-size:11px; padding:2px 6px; border-radius:999px; background:#374151; color:#c7d2fe; margin-left:6px; }
     a.clean { color:#93c5fd; text-decoration:none; }
-
-    /* pulse */
-    @keyframes xraffle-pulse-border {
-      0%   { box-shadow: 0 0 0 0 rgba(255, 230, 0, .0); border-color: rgba(255, 230, 0, .0); }
-      25%  { box-shadow: 0 0 18px 4px rgba(255, 230, 0, .9); border-color: rgba(255, 230, 0, 1); }
-      100% { box-shadow: 0 0 0 0 rgba(255, 230, 0, .0); border-color: rgba(255, 230, 0, .0); }
-    }
   `;
 
   const wrap = document.createElement('div');
@@ -114,7 +107,8 @@
           <button id="start" class="btn primary" title="Auto scroll & collect">Start</button>
           <button id="stop"  class="btn" disabled>Stop</button>
           <button id="clear" class="btn">Clear</button>
-          <button id="point" class="btn" title="Highlight collection scope">Point</button>
+          <!-- Point 제거, Follower Only 추가 -->
+          <button id="followersOnly" class="btn" title="Show only users who follow me" disabled>Follower Only</button>
         </div>
         <div class="row">
           <span class="pill">Found: <b id="count">0</b></span>
@@ -143,7 +137,6 @@
       <div id="list" class="list"></div>
       <small>외부 서버로 데이터를 전송하지 않습니다.</small>
       <small>현재 스코프: <span class="monospace">${RETWEETS_SCOPE === PRIMARY ? 'PRIMARY' : 'RETWEETS_SCOPE'}</span> (사이드바/팔로우 추천 제외)</small>
-      <small>© 2025 JTech CO. X Reposts Raffle Extension. All rights reserved. JTech_CO = Bryan M. = Sekhar</small>
     </div>
   `;
   shadow.append(style, wrap);
@@ -153,7 +146,7 @@
     start: shadow.getElementById('start'),
     stop : shadow.getElementById('stop'),
     clear: shadow.getElementById('clear'),
-    point: shadow.getElementById('point'),
+    followersOnly: shadow.getElementById('followersOnly'),
     count: shadow.getElementById('count'),
     delta: shadow.getElementById('delta'),
     status: shadow.getElementById('status'),
@@ -169,6 +162,7 @@
 
   // ========= State =========
   let running = false;
+  let extracted = false; // RT 수집 완료 여부
   let users = [];
   let seen = new Set();
   let lastCount = 0;
@@ -177,7 +171,25 @@
   const PAUSE = 700;
   const MAX_TICKS = 200;
 
-  // ========= Render & helpers =========
+  // ========= Helpers =========
+  const FOLLOW_LABELS = [
+    'Follows you',
+    '나를 팔로우합니다',
+    '나를 팔로우함',
+    '나를 팔로우 중',
+    '팔로우합니다',
+    '팔로우함'
+  ];
+  function isFollowerCell(cell) {
+    // aria-label 우선 확인
+    if (cell.querySelector('[aria-label*="Follows you" i]')) return true;
+    if (cell.querySelector('[aria-label*="나를 팔로우합니다"]')) return true;
+    
+    // 텍스트 스캔(로케일 혼용 대응)
+    const text = (cell.innerText || cell.textContent || '').trim();
+    return FOLLOW_LABELS.some(lbl => text.toLowerCase().includes(lbl.toLowerCase()));
+  }
+
   function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
   function renderList() {
@@ -196,7 +208,11 @@
     ui.list.innerHTML = filtered.map(u => `
       <div class="user">
         <div>
-          <div><b>${esc(u.nickname || '(no name)')}</b> <span class="tag">@${esc(u.handle)}</span></div>
+          <div>
+            <b>${esc(u.nickname || '(no name)')}</b>
+            <span class="tag">@${esc(u.handle)}</span>
+            ${u.followsMe ? '<span class="tag">Follows you</span>' : ''}
+          </div>
           <div style="font-size:12px; color:#cbd5e1; white-space:pre-wrap">${esc(u.description||'')}</div>
         </div>
         <a class="clean" href="https://x.com/${encodeURIComponent(u.handle)}" target="_blank">Open</a>
@@ -206,36 +222,13 @@
     ui.count.textContent = users.length;
   }
 
-  function ensureGlobalPulseCSS() {
-  if (document.getElementById('xraffle-pulse-style')) return;
-  const s = document.createElement('style');
-  s.id = 'xraffle-pulse-style';
-  s.textContent = `
-    @keyframes xraffle-pulse-border {
-      0%   { box-shadow: 0 0 0 0 rgba(255,230,0,0); border-color: rgba(255,230,0,0); }
-      25%  { box-shadow: 0 0 18px 4px rgba(255,230,0,.95); border-color: rgba(255,230,0,1); }
-      100% { box-shadow: 0 0 0 0 rgba(255,230,0,0); border-color: rgba(255,230,0,0); }
-    }
-    .xraffle-pulse {
-      position: fixed;
-      border: 3px solid rgba(255,230,0,0);
-      border-radius: 10px;
-      background: transparent;
-      pointer-events: none;
-      z-index: 2147483646;
-      animation: xraffle-pulse-border 500ms ease-in-out 1;
-    }
-  `;
-  document.head.appendChild(s);
-}
-
+  // ========= Core parsing & collection =========
   function parseCells() {
     const cells = $$('[data-testid="UserCell"]', RETWEETS_SCOPE);
     let added = 0;
 
     for (const c of cells) {
       if (isInExcludedArea(c)) continue;
-
       try {
         let handle = "";
         const links = $$('a[href^="/"], a[href^="https://x.com/"]', c);
@@ -260,8 +253,10 @@
         const descEl = c.querySelector('div[dir="auto"][lang]');
         if (descEl) description = descEl.textContent.trim();
 
+        const followsMe = isFollowerCell(c);
+
         if (!seen.has(handle)) {
-          users.push({ handle, nickname, description, followStatus: '팔로우' });
+          users.push({ handle, nickname, description, followsMe });
           seen.add(handle);
           added++;
         }
@@ -271,8 +266,9 @@
   }
 
   async function autoScrollCollect() {
-    running = true; stableTicks = 0; lastCount = users.length;
+    running = true; extracted = false; stableTicks = 0; lastCount = users.length;
     ui.status.textContent = 'running'; ui.start.disabled = true; ui.stop.disabled = false;
+    ui.followersOnly.disabled = true; // 수집 중에는 비활성
 
     for (let tick=0; running && tick<MAX_TICKS; tick++) {
       const added = parseCells();
@@ -296,14 +292,22 @@
 
     ui.status.textContent = 'stopped';
     ui.start.disabled = false; ui.stop.disabled = true;
-    running = false;
+    running = false; extracted = true;
+    ui.followersOnly.disabled = users.length === 0; // 리스트가 있어야만 활성화
   }
 
-  function stop() { running = false; }
+  function stop() {
+    running = false;
+    extracted = true; // 수동 종료도 '추출 완료'
+    ui.followersOnly.disabled = users.length === 0;
+  }
 
   function clearAll() {
-    users = []; seen = new Set(); renderList();
+    users = []; seen = new Set();
+    extracted = false;
     ui.delta.textContent = '0'; ui.status.textContent = 'idle';
+    ui.followersOnly.disabled = true;
+    renderList();
   }
 
   function drawWinners() {
@@ -327,44 +331,30 @@
     });
   }
 
-  // ========= Scope Pulse =========
-  function pulseScope(durationMs = 500) {
-  if (!RETWEETS_SCOPE || !document.body) return;
-
-  ensureGlobalPulseCSS();
-
-  const rect0 = RETWEETS_SCOPE.getBoundingClientRect();
-  // 화면 밖이면 중앙으로 스크롤
-  if (rect0.bottom < 0 || rect0.top > window.innerHeight) {
-    RETWEETS_SCOPE.scrollIntoView({ behavior: 'instant', block: 'center' });
+  // ========= Followers-only filter =========
+  function applyFollowersOnly() {
+    if (!extracted || users.length === 0) return; // RT 리스트가 없는 경우 방지
+    users = users.filter(u => u.followsMe === true);
+    renderList();
+    ui.followersOnly.disabled = true; // 1회성
+    ui.status.textContent = 'followers-only';
+    setTimeout(()=> ui.status.textContent = 'idle', 1200);
   }
-  const r = RETWEETS_SCOPE.getBoundingClientRect();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'xraffle-pulse';
-  overlay.style.left   = `${r.left}px`;
-  overlay.style.top    = `${r.top}px`;
-  overlay.style.width  = `${r.width}px`;
-  overlay.style.height = `${r.height}px`;
-
-  document.body.appendChild(overlay);
-  setTimeout(() => overlay.remove(), durationMs);
-}
 
   // ========= Wire UI =========
   ui.start.onclick = autoScrollCollect;
   ui.stop.onclick  = stop;
   ui.clear.onclick = clearAll;
-  ui.point.onclick = () => pulseScope(500);   // 컨테이너만 0.5s 펄스
   ui.sort.onchange = renderList;
   ui.filter.oninput = renderList;
   ui.draw.onclick   = drawWinners;
   ui.copy.onclick   = () => copyText(users.map(u=>`${u.nickname} (@${u.handle})`).join('\n'));
   ui.csv.onclick    = () => copyText(toCSV(users));
   ui.json.onclick   = () => copyText(JSON.stringify({count: users.length, users}, null, 2));
+  ui.followersOnly.onclick = applyFollowersOnly;
   ui.close.onclick  = () => { host.remove(); window.__X_RAFFLE_PANEL__ = false; };
 
-  // 초기 화면에 이미 보이는 셀도 반영
-  parseCells(); renderList();
+  // 초기 1회 파싱
+  parseCells();
+  renderList();
 })();
-
