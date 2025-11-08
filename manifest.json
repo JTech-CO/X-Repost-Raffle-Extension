@@ -1,29 +1,20 @@
 {
   "manifest_version": 3,
   "name": "X Reposts Raffle",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Collect retweeters on X and run on-page sorting & raffle. No server required.",
   "icons": {
     "16": "icons/XRT16.png",
     "48": "icons/XRT48.png",
     "128": "icons/XRT128.png"
   },
-  "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": [
-    "https://x.com/*",
-    "https://twitter.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://x.com/*/status/*/retweets*",
-        "https://twitter.com/*/status/*/retweets*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "action": {
-    "default_title": "X Reposts Raffle"
-  }
+  "content_scripts": [{
+    "matches": [
+      "https://x.com/*/status/*/retweets*",
+      "https://twitter.com/*/status/*/retweets*"
+    ],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }],
+  "action": { "default_title": "X Reposts Raffle" }
 }
