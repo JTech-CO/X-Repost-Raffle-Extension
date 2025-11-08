@@ -9,3 +9,4 @@
 - 1.2.0 = Point 제거, Follower Only 버튼 추가
 - 1.2.1 = Follower Only는 RT 수집 후에만 활성화
 - 1.3.0 = 'Follows you/나를 팔로우합니다' 필터링 추가
+- 1.3.1 = 매니페스트에서 사용하지 않는 권한 삭제
